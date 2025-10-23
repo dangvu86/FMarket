@@ -15,25 +15,25 @@ def install_playwright():
     """Cài đặt Playwright browsers một lần duy nhất"""
     try:
         import subprocess
+        # Không dùng --with-deps vì Streamlit Cloud không có sudo
+        # System dependencies được cài qua packages.txt
         result = subprocess.run(
-            [sys.executable, "-m", "playwright", "install", "--with-deps", "chromium"],
+            [sys.executable, "-m", "playwright", "install", "chromium"],
             check=True,
             capture_output=True,
             text=True,
             timeout=300
         )
-        st.success("Playwright installed successfully!")
         return True
     except subprocess.CalledProcessError as e:
-        st.error(f"Playwright install failed: {e.stderr}")
+        st.warning(f"Playwright install warning: {e.stderr}")
         return False
     except Exception as e:
-        st.error(f"Không thể cài Playwright: {e}")
+        st.warning(f"Playwright install error: {e}")
         return False
 
 # Cài đặt Playwright
-with st.spinner("Installing Playwright (first time only)..."):
-    install_playwright()
+install_playwright()
 
 def get_data():
     """Scrape data trực tiếp bằng Playwright (không dùng subprocess)"""
@@ -45,7 +45,16 @@ def get_data():
         from playwright.sync_api import sync_playwright
 
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            # Launch browser với args để tránh lỗi trên cloud
+            browser = p.chromium.launch(
+                headless=True,
+                args=[
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu'
+                ]
+            )
             page = browser.new_page()
 
             # Login
