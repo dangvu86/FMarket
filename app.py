@@ -4,10 +4,27 @@ import subprocess
 import json
 import gspread
 from google.oauth2.service_account import Credentials
+import os
+import sys
 
 st.title("FMarket Data Scraper")
 
 SHEET_URL = "https://docs.google.com/spreadsheets/d/19H1Tvyy1Of36PIqonFM2OQGYBFjhDHHSxGWPMlb1RBc/edit?usp=sharing"
+
+# Cài đặt Playwright khi lần đầu chạy trên Streamlit Cloud
+@st.cache_resource
+def install_playwright():
+    """Cài đặt Playwright browsers một lần duy nhất"""
+    try:
+        subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"],
+                      check=True, capture_output=True)
+        return True
+    except Exception as e:
+        st.error(f"Không thể cài Playwright: {e}")
+        return False
+
+# Cài đặt Playwright
+install_playwright()
 
 def get_data():
     # Lấy credentials từ Streamlit secrets
@@ -43,8 +60,26 @@ with sync_playwright() as p:
     print(json.dumps(data))
 """
 
-    result = subprocess.run(['python', '-c', script], capture_output=True, text=True)
-    return json.loads(result.stdout)
+    result = subprocess.run([sys.executable, '-c', script], capture_output=True, text=True)
+
+    # Debug: Hiển thị output và error
+    if result.returncode != 0:
+        st.error(f"Subprocess failed with return code {result.returncode}")
+        st.error(f"STDERR: {result.stderr}")
+        st.info(f"STDOUT: {result.stdout}")
+        raise Exception(f"Playwright script failed: {result.stderr}")
+
+    if not result.stdout.strip():
+        st.error("Subprocess returned empty output")
+        st.error(f"STDERR: {result.stderr}")
+        raise Exception("No data returned from Playwright")
+
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        st.error(f"Failed to parse JSON: {e}")
+        st.error(f"Raw output: {result.stdout[:500]}")
+        raise
 
 if st.button("Get Data"):
     with st.spinner("Đang login..."):
